@@ -29,8 +29,9 @@ main(){
   fi
 
   printm "Cloning rpi-mqtt-monitor git repository"
-  git clone https://github.com/hjelev/rpi-mqtt-monitor.git
+  git clone https://github.com/systempal/rpi-mqtt-monitor.git
   cd rpi-mqtt-monitor
+  git checkout plus
   git pull
   bash install.sh
 }
