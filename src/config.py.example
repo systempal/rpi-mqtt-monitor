@@ -1,18 +1,15 @@
 from random import randrange
 
 # Script version
-version = "0.6.2"
+version = '0.9.3'
 # MQTT server configuration
-mqtt_host = "ip address or host"
-mqtt_user = "username"
-mqtt_password = "password"
+mqtt_host = "10.10.20.11"
+mqtt_user = "agent"
+mqtt_password = "Thor2008!"
 mqtt_port = "1883"
 mqtt_topic_prefix = "rpi-MQTT-monitor"
 
 # Messages configuration
-
-# Uncomment the line bellow to send just one CSV message containing all values (this method don't support HA discovery_messages)
-# group_messages = True
 
 # If this is set, then the script will send MQTT discovery messages meaning a config less setup in HA.
 # Only works when group_messages is not used
@@ -31,10 +28,10 @@ display_control = False
 os_user = 'os_user_to_be_replaced'
 
 # Binary sensor that displays when there are updates
-git_update = True
+git_update = False
 
 # Enable remote update of the script via Home Assistant
-update = True
+update = False
 
 # Retain flag for published topics
 retain = True
@@ -50,16 +47,22 @@ qos = 0
 # this is the time between executiuons if the script is used as service (--service option)
 service_sleep_time = 120
 update_check_interval = 3600 # 1 hour
-cpu_load = True
-cpu_temp = True
-used_space = True
+cpu_load = False
+cpu_temp = False
+used_space = False
 used_space_path = '/'
 voltage = False
 sys_clock_speed = False
 swap = False
-memory = True
-uptime = True
+memory = False
+uptime = False
 uptime_seconds = False
+os_version = True
+manufacturer = True
+model_name = True
+kernel_version = True
+system_updates = True
+system_arch = True
 
 # Enable wifi_signal for unit of measuring % or wifi_signal_dbm for unit of meaning dBm
 wifi_signal = False
