@@ -116,9 +116,9 @@ def check_uptime(format):
 
 
 def check_model_name():
-   full_cmd = "cat /sys/firmware/devicetree/base/model"
-   model_name = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8")
-   if model_name == '':
+    full_cmd = "cat /sys/firmware/devicetree/base/model"
+    model_name = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8")
+    if model_name == '':
         full_cmd = "cat /proc/cpuinfo  | grep 'name'| uniq"
         model_name = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8")
         try:
@@ -126,14 +126,41 @@ def check_model_name():
         except Exception:
             model_name = 'Unknown'
 
-   return model_name
+    try:
+        with open('/proc/meminfo', 'r') as meminfo_file:
+            for line in meminfo_file:
+                if line.startswith('MemTotal'):
+                    total_ram_kb = int(line.split()[1])  # Estrae la memoria totale in KB
+                    break
+            else:
+                total_ram_kb = None  # Se 'MemTotal' non è trovato
+    except Exception as e:
+        print(f"Errore durante la lettura della memoria: {e}")
+        total_ram_kb = None
+
+    if total_ram_kb:
+        total_ram_gb = total_ram_kb / 1024 / 1024  # Converti KB a GB
+        if total_ram_gb < 1.5:
+            ram_str = '1 GB'
+        elif 1.5 <= total_ram_gb < 3.5:
+            ram_str = '2 GB'
+        elif 3.5 <= total_ram_gb < 6.5:
+            ram_str = '4 GB'
+        elif total_ram_gb >= 6.5:
+            ram_str = '8 GB'
+        else:
+            ram_str = 'Unknown RAM'
+    else:
+        ram_str = 'Unknown RAM'
+
+    return model_name + ' - ' +ram_str
 
 
 def check_rpi5_fan_speed():
-   full_cmd = "cat /sys/devices/platform/cooling_fan/hwmon/*/fan1_input"
-   rpi5_fan_speed = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8").strip()
+    full_cmd = "cat /sys/devices/platform/cooling_fan/hwmon/*/fan1_input"
+    rpi5_fan_speed = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8").strip()
 
-   return rpi5_fan_speed
+    return rpi5_fan_speed
 
 
 def get_os():
@@ -160,6 +187,63 @@ def get_manufacturer():
         
     return(pretty_name)
 
+def get_kernel_version():
+    full_cmd = 'uname -r'
+    kernel_version = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8")
+    try:
+        kernel_version = kernel_version.strip()
+    except Exception:
+        kernel_version = 'Unknown'
+        
+    return kernel_version
+
+def check_updates():
+    full_cmd = "sudo apt update"
+    try:
+        update_process = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8")
+    except Exception:
+        print(f"Errore durante l'esecuzione di 'apt update'")
+        return 'Unknown'
+
+    full_cmd = "apt list --upgradable 2>/dev/null | grep -c 'upgradable'"
+    try:
+        system_updates = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8").strip()
+        system_updates = int(system_updates)
+    except Exception:
+        system_updates = 'Unknown'
+        
+    return system_updates
+
+def get_system_architecture():
+    full_cmd = 'uname -m'
+    try:
+        architecture = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8").strip()
+    except Exception:
+        architecture = 'Unknown'
+        
+    return architecture
+
+def get_cpu_info():
+    try:
+        lscpu_output = subprocess.Popen("lscpu", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8")
+        core_count = 0
+        core_model = None
+        for line in lscpu_output.splitlines():
+            if "CPU(s):" in line and "NUMA" not in line:
+                core_count = int(line.split(":")[1].strip())
+            elif "Model name:" in line or "Core(s) per socket:" in line:
+                core_model = line.split(":")[1].strip()
+        
+        if core_model is not None:
+            cpu_info = f"{core_count} x {core_model}"
+        else:
+            cpu_info = f"{core_count} cores"
+
+        return cpu_info
+
+    except Exception as e:
+        print(f"Errore durante il recupero delle informazioni sulla CPU: {e}")
+        return "Unknown"
 
 def check_git_update(script_dir):
     remote_version = update.check_git_version_remote(script_dir)
@@ -204,7 +288,8 @@ def get_mac_address():
 
 
 def print_measured_values(cpu_load=0, cpu_temp=0, used_space=0, voltage=0, sys_clock_speed=0, swap=0, memory=0,
-                          uptime_days=0, uptime_seconds=0, wifi_signal=0, wifi_signal_dbm=0, rpi5_fan_speed=0):
+                          uptime_days=0, uptime_seconds=0, wifi_signal=0, wifi_signal_dbm=0, rpi5_fan_speed=0,
+                          os_version=0, manufacturer=0, model_name=0, kernel_version=0, system_updates=0, system_arch=0):
     remote_version = update.check_git_version_remote(script_dir)
     output = """
 :: rpi-mqtt-monitor
@@ -236,8 +321,14 @@ def print_measured_values(cpu_load=0, cpu_temp=0, used_space=0, voltage=0, sys_c
    Wifi Signal: {} %
    Wifi Signal dBm: {}
    RPI5 Fan Speed: {} RPM
+   OS: {}
+   Kernel: {}
+   Architecture: {}
+   System updates: {}
+   Manufacturer: {}
+   Model: {}
    Update: {}
-   """.format(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, check_git_update(script_dir))
+   """.format(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, os_version, kernel_version, system_arch, system_updates, manufacturer, model_name, check_git_update(script_dir))
     output += """Installation directory: {}
 
 :: Release notes {}: 
@@ -289,12 +380,10 @@ def config_json(what_config):
 
         "device": {
             "identifiers": [hostname],
-            "manufacturer": 'github.com/hjelev',
-            "model": 'RPi MQTT Monitor ' + config.version,
+            "manufacturer": 'github.com/systempal',
+            "model": 'RPi MQTT Monitor PLus ' + config.version,
             "name": hostname,
-            "sw_version": os,
-            "hw_version": model_name + " by " + manufacturer,
-            "configuration_url": "https://github.com/hjelev/rpi-mqtt-monitor"
+            "configuration_url": "https://github.com/systempal/rpi-mqtt-monitor-plus"
         }
     }
 
@@ -305,6 +394,24 @@ def config_json(what_config):
         data["name"] = "CPU Usage"
         data["state_class"] = "measurement"
         data["unit_of_measurement"] = "%"
+    elif what_config == "os_version":
+        data["icon"] = "mdi:linux"
+        data["name"] = "OS"
+    elif what_config == "manufacturer":
+        data["icon"] = "mdi:server-network"
+        data["name"] = "Manufaturer"
+    elif what_config == "model_name":
+        data["icon"] = "mdi:credit-card-settings-outline"
+        data["name"] = "Model Name"
+    elif what_config == "kernel_version":
+        data["icon"] = "mdi:linux"
+        data["name"] = "Kernel"
+    elif what_config == "system_updates":
+        data["icon"] = "mdi:linux"
+        data["name"] = "Updates"
+    elif what_config == "system_arch":
+        data["icon"] = "mdi:linux"
+        data["name"] = "Architecture"
     elif what_config == "cputemp":
         data["icon"] = "hass:thermometer"
         data["name"] = "CPU Temperature"
@@ -468,13 +575,44 @@ def publish_update_status_to_mqtt(git_update):
 
 
 def publish_to_mqtt(cpu_load=0, cpu_temp=0, used_space=0, voltage=0, sys_clock_speed=0, swap=0, memory=0,
-                    uptime_days=0, uptime_seconds=0, wifi_signal=0, wifi_signal_dbm=0, rpi5_fan_speed=0):
+                    uptime_days=0, uptime_seconds=0, wifi_signal=0, wifi_signal_dbm=0, rpi5_fan_speed=0,
+                    os_version=0, manufacturer=0, model_name=0, kernel_version=0, system_updates=0, system_arch=0):
     client = create_mqtt_client()
     if client is None:
         return
 
     client.loop_start()
 
+    if config.os_version:
+        if config.discovery_messages:
+            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_os_version/config",
+                           config_json('os_version'), qos=config.qos)
+        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/os_version", os_version, qos=config.qos, retain=config.retain)
+    if config.manufacturer:
+        if config.discovery_messages:
+            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_manufacturer/config",
+                           config_json('manufacturer'), qos=config.qos)
+        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/manufacturer", manufacturer, qos=config.qos, retain=config.retain)
+    if config.model_name:
+        if config.discovery_messages:
+            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_model_name/config",
+                           config_json('model_name'), qos=config.qos)
+        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/model_name", model_name, qos=config.qos, retain=config.retain)
+    if config.kernel_version:
+        if config.discovery_messages:
+            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_kernel_version/config",
+                           config_json('kernel_version'), qos=config.qos)
+        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/kernel_version", kernel_version, qos=config.qos, retain=config.retain)
+    if config.system_updates:
+        if config.discovery_messages:
+            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_system_updates/config",
+                           config_json('system_updates'), qos=config.qos)
+        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/system_updates", system_updates, qos=config.qos, retain=config.retain)
+    if config.system_arch:
+        if config.discovery_messages:
+            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_system_arch/config",
+                           config_json('system_arch'), qos=config.qos)
+        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/system_arch", system_arch, qos=config.qos, retain=config.retain)
     if config.cpu_load:
         if config.discovery_messages:
             client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_cpuload/config",
@@ -562,29 +700,6 @@ def publish_to_mqtt(cpu_load=0, cpu_temp=0, used_space=0, voltage=0, sys_clock_s
     client.loop_stop()
     client.disconnect()
 
-
-def bulk_publish_to_mqtt(cpu_load=0, cpu_temp=0, used_space=0, voltage=0, sys_clock_speed=0, swap=0, memory=0,
-                         uptime_days=0, uptime_seconds=0, wifi_signal=0, wifi_signal_dbm=0, rpi5_fan_speed=0, git_update=0):
-    # compose the CSV message containing the measured values
-
-    values = cpu_load, cpu_temp, used_space, voltage, int(sys_clock_speed), swap, memory, uptime_days, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, git_update
-    values = str(values)[1:-1]
-
-    client = create_mqtt_client()
-    if client is None:
-        return
-
-    client.loop_start()
-    client.publish(config.mqtt_topic_prefix + "/" + hostname, values, qos=config.qos, retain=config.retain)
-
-    while len(client._out_messages) > 0:
-        time.sleep(0.1)
-        client.loop()
-
-    client.loop_stop()
-    client.disconnect()
-
-
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('--display', '-d', action='store_true', help='display values on screen', default=False)
@@ -609,10 +724,10 @@ def parse_arguments():
 
     if args.version:
         installed_version = config.version
-        latest_versino = update.check_git_version_remote(script_dir).strip()
+        latest_version = update.check_git_version_remote(script_dir).strip()
         print("Installed version: " + installed_version)
-        print("Latest version: " + latest_versino)
-        if installed_version != latest_versino:
+        print("Latest version: " + latest_version)
+        if installed_version != latest_version:
             print("Update available")
         else:
             print("No update available")
@@ -638,7 +753,7 @@ def parse_arguments():
 
 
 def collect_monitored_values():
-    cpu_load = cpu_temp = used_space = voltage = sys_clock_speed = swap = memory = uptime_seconds = uptime_days = wifi_signal = wifi_signal_dbm = rpi5_fan_speed = False
+    cpu_load = cpu_temp = used_space = voltage = sys_clock_speed = swap = memory = uptime_seconds = uptime_days = wifi_signal = wifi_signal_dbm = rpi5_fan_speed = os_version = manufacturer = model_name = kernel_version = system_updates = system_arch = False
 
     if config.cpu_load:
         cpu_load = check_cpu_load()
@@ -664,24 +779,33 @@ def collect_monitored_values():
         wifi_signal_dbm = check_wifi_signal('dbm')
     if config.rpi5_fan_speed:
         rpi5_fan_speed = check_rpi5_fan_speed()
+    if config.os_version:
+        os_version = get_os()
+    if config.manufacturer:
+        manufacturer = get_manufacturer()
+    if config.model_name:
+        model_name = check_model_name()
+    if config.kernel_version:
+        kernel_version = get_kernel_version()
+    if config.system_updates:
+        system_updates = check_updates()
+    if config.system_arch:
+        system_arch = get_system_architecture()
 
-    return cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed
+    return cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, os_version, manufacturer, model_name, kernel_version, system_updates, system_arch
 
 
 def gather_and_send_info():
     while not stop_event.is_set():
-        cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed = collect_monitored_values()
+        cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, os_version, manufacturer, model_name, kernel_version, system_updates, system_arch = collect_monitored_values()
 
         if hasattr(config, 'random_delay'):
             time.sleep(config.random_delay)
 
         if args.display:
-            print_measured_values(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed)
+            print_measured_values(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, os_version, manufacturer, model_name, kernel_version, system_updates, system_arch)
 
-        if hasattr(config, 'group_messages') and config.group_messages:
-            bulk_publish_to_mqtt(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed)
-        else:
-            publish_to_mqtt(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed)
+        publish_to_mqtt(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, os_version, manufacturer, model_name, kernel_version, system_updates, system_arch)
 
         if not args.service:
             break
