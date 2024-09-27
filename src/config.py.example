@@ -1,19 +1,16 @@
 from random import randrange
 
 # Script version
-version = '0.9.3'
+version = '0.1'
+
 # MQTT server configuration
-mqtt_host = "10.10.20.11"
-mqtt_user = "agent"
-mqtt_password = "Thor2008!"
+mqtt_host = ""
+mqtt_user = ""
+mqtt_password = ""
 mqtt_port = "1883"
 mqtt_topic_prefix = "rpi-MQTT-monitor"
 
-# Messages configuration
-
-# If this is set, then the script will send MQTT discovery messages meaning a config less setup in HA.
-# Only works when group_messages is not used
-discovery_messages = True
+#BUTTONS
 
 # Enable remote restart button in Home Assistant
 restart_button = True
@@ -21,52 +18,51 @@ restart_button = True
 # Enable remote shutdown button in Home Assistant
 shutdown_button = True
 
-# Enable control of attached display(s) via Home Assistant
-display_control = False
+# Enable remote 'check for system updates' button in Home Assistant
+check_updates_button = True
 
-# user for which display_control is enabled
-os_user = 'os_user_to_be_replaced'
+# Enable remote 'install system updates' button in Home Assistant
+install_updates_button = True
 
-# Binary sensor that displays when there are updates
-git_update = False
 
-# Enable remote update of the script via Home Assistant
-update = False
 
 # Retain flag for published topics
 retain = True
 
 # QOS setting for published topics: 0,1,2 are acceptable values
-qos = 0
+qos = 1
 
 # Random delay in seconds before measuring the values
 # - this is used for de-synchronizing message if you run this script on many hosts.
 # - if you want a fixed delay you can remove the randrange function and just set the needed value.
 # random_delay = randrange(10)
 
-# this is the time between executiuons if the script is used as service (--service option)
+# This is the time between executiuons if the script is used as service (--service option)
 service_sleep_time = 120
-update_check_interval = 3600 # 1 hour
-cpu_load = False
-cpu_temp = False
-used_space = False
-used_space_path = '/'
-voltage = False
-sys_clock_speed = False
-swap = False
-memory = False
-uptime = False
-uptime_seconds = False
+
+# This is the time in seconds between system update checks
+updates_check_interval = 3600
+
+
+disk_usage = True
+disk_usage_path = '/'
+
+cpu_clock_speed = True
+swap_usage = True
+memory_usage = True
+uptime = True
+uptime_seconds = True
+
 os_version = True
-manufacturer = True
+manufacturer_info = True
 model_name = True
 kernel_version = True
 system_updates = True
-system_arch = True
+system_architecture = True
 
 # Enable wifi_signal for unit of measuring % or wifi_signal_dbm for unit of meaning dBm
 wifi_signal = False
 wifi_signal_dbm = False
 
 # this works only on raspbery pi version 5 with stock fan
-rpi5_fan_speed = False
+rpi5_fan_speed = True

@@ -4,7 +4,7 @@
 # RUN sudo apt-get install python-pip
 # RUN pip install paho-mqtt
 
-from __future__ import division
+#from __future__ import division
 import subprocess
 import time
 import socket
@@ -14,7 +14,7 @@ import os
 import sys
 import argparse
 import threading
-import update
+#import update
 import config
 import re
 import html
@@ -49,30 +49,6 @@ def check_used_space(path):
     return used_space
 
 
-def check_cpu_load():
-    p = subprocess.Popen("uptime", shell=True, stdout=subprocess.PIPE).communicate()[0]
-    cores = subprocess.Popen("nproc", shell=True, stdout=subprocess.PIPE).communicate()[0]
-    try:
-        cpu_load = str(p).split("average:")[1].split(", ")[0].replace(' ', '').replace(',', '.')
-        cpu_load = float(cpu_load) / int(cores) * 100
-        cpu_load = round(float(cpu_load), 1)
-    except Exception:
-        cpu_load = 0
-
-    return cpu_load
-
-
-def check_voltage():
-    try:
-        full_cmd = "vcgencmd measure_volts | cut -f2 -d= | sed 's/000//'"
-        voltage = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0]
-        voltage = voltage.strip()[:-1]
-    except Exception:
-        voltage = 0
-
-    return voltage.decode('utf8')
-
-
 def check_swap():
     full_cmd = "free | grep -i swap | awk 'NR == 1 {if($2 > 0) {print $3/$2*100} else {print 0}}'"
     swap = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE).communicate()[0]
@@ -89,27 +65,42 @@ def check_memory():
     return memory
 
 
-def check_cpu_temp():
-    full_cmd = "cat /sys/class/thermal/thermal_zone*/temp 2> /dev/null | sed 's/\\(.\\)..$//' | tail -n 1"
-    try:
-        p = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE).communicate()[0]
-        cpu_temp = p.decode("utf-8").strip()
-    except Exception:
-        cpu_temp = 0
-
-    return cpu_temp
-
-
 def check_sys_clock_speed():
-    full_cmd = "awk '{printf (\"%0.0f\",$1/1000); }' </sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
-
-    return subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE).communicate()[0]
+    full_cmd = "awk '{printf (\"%.0f\", $1/1000); }' </sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
+    output = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE).communicate()[0]
+    return output.decode('utf-8').strip()
 
 
 def check_uptime(format):
     full_cmd = "awk '{print int($1"+format+")}' /proc/uptime"
 
     return int(subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE).communicate()[0])
+
+
+def check_uptime_str():
+    try:
+        with open('/proc/uptime', 'r') as f:
+            uptime_seconds = float(f.readline().split()[0])
+    except Exception as e:
+        print(f"Errore durante la lettura di /proc/uptime: {e}")
+        return None
+
+    giorni = int(uptime_seconds // 86400)
+    ore = int((uptime_seconds % 86400) // 3600)
+    minuti = int((uptime_seconds % 3600) // 60)
+    secondi = int(uptime_seconds % 60)
+
+    parts = []
+    if giorni > 0:
+        parts.append(f"{giorni} {'giorno' if giorni == 1 else 'giorni'}")
+    if ore > 0:
+        parts.append(f"{ore} {'ora' if ore == 1 else 'ore'}")
+    if minuti > 0:
+        parts.append(f"{minuti} {'minuto' if minuti == 1 else 'minuti'}")
+    if secondi > 0 or not parts:
+        parts.append(f"{secondi} {'secondo' if secondi == 1 else 'secondi'}")
+
+    return ', '.join(parts)
 
 
 def check_model_name():
@@ -121,7 +112,7 @@ def check_model_name():
         try:
             model_name = model_name.split(':')[1].replace('\n', '')
         except Exception:
-            model_name = 'Unknown'
+            model_name = 'unknown'
 
     try:
         with open('/proc/meminfo', 'r') as meminfo_file:
@@ -146,11 +137,14 @@ def check_model_name():
         elif total_ram_gb >= 6.5:
             ram_str = '8 GB'
         else:
-            ram_str = 'Unknown RAM'
+            ram_str = ''
     else:
-        ram_str = 'Unknown RAM'
+        ram_str = ''
 
-    return model_name + ' - ' +ram_str
+    if ram_str:
+        return model_name + ' - ' + ram_str
+    else:
+        return model_name
 
 
 def check_rpi5_fan_speed():
@@ -180,7 +174,7 @@ def get_manufacturer():
         else:
             pretty_name = 'Raspberry Pi'
     except Exception:
-        pretty_name = 'Unknown'
+        pretty_name = 'unknown'
         
     return(pretty_name)
 
@@ -191,27 +185,83 @@ def get_kernel_version():
     try:
         kernel_version = kernel_version.strip()
     except Exception:
-        kernel_version = 'Unknown'
+        kernel_version = 'unknown'
         
     return kernel_version
 
 
-def check_system_updates():
-    full_cmd = "sudo apt update"
+def get_system_updates():
+    full_cmd = "sudo apt-get update"
     try:
         update_process = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8")
     except Exception:
-        print(f"Errore durante l'esecuzione di 'apt update'")
-        return 'Unknown'
+        print(f"Errore durante l'esecuzione di 'apt-get update'")
 
+    check_system_updates()
+
+    return
+
+
+def check_system_updates():
     full_cmd = "apt list --upgradable 2>/dev/null | grep -c 'upgradable'"
     try:
         system_updates = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8").strip()
         system_updates = int(system_updates)
     except Exception:
-        system_updates = 'Unknown'
+        system_updates = 'unknown'
 
     return system_updates
+
+
+def install_system_updates():
+    full_cmd = "sudo apt-get update && sudo apt-get -y upgrade && sudo apt-get -y dist-upgrade && sudo apt-get -y autoremove"
+    
+    try:
+        publish_system_update_progress("Inizio dell'installazione degli aggiornamenti...")
+        print("Inizio dell'installazione degli aggiornamenti...")
+        process = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+
+        for line in iter(process.stdout.readline, ''):
+            if line:
+                publish_system_update_progress(line.strip())
+                print(line.strip())
+
+        process.stdout.close()
+        process.wait()
+
+        if process.returncode == 0:
+            result = "Aggiornamento completato con successo!"
+        else:
+            result = f"Errore durante l'aggiornamento: codice di ritorno {process.returncode}"
+        
+    except Exception as e:
+        result = f"Eccezione durante l'aggiornamento: {str(e)}"
+    
+    print(result)
+    publish_system_update_progress(result)
+    system_update_info = check_system_updates()
+    publish_system_update_status_to_mqtt(system_update_info)
+
+    return result
+
+def get_upgradable_packages():
+    full_cmd = "sudo apt list --upgradable 2>/dev/null | grep 'upgradable' | awk -F/ '{print $1}'"
+    try:
+        # Esegui il comando e cattura l'output
+        packages = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8").strip()
+        
+        # Controlla se ci sono pacchetti aggiornabili
+        if packages:
+            # Trasforma la lista dei pacchetti in una stringa separata da virgola
+            package_list = packages.split('\n')
+            package_str = ', '.join(package_list)
+        else:
+            package_str = 'No upgradable packages'
+    
+    except Exception:
+        package_str = 'Error while checking for updates'
+
+    return package_str
 
 
 def get_system_architecture():
@@ -219,7 +269,7 @@ def get_system_architecture():
     try:
         architecture = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8").strip()
     except Exception:
-        architecture = 'Unknown'
+        architecture = 'unknown'
         
     return architecture
 
@@ -244,30 +294,7 @@ def get_cpu_info():
 
     except Exception as e:
         print(f"Errore durante il recupero delle informazioni sulla CPU: {e}")
-        return "Unknown"
-
-
-def check_git_update(script_dir):
-    remote_version = update.check_git_version_remote(script_dir)
-    if config.version == remote_version:
-        git_update = {
-                    "installed_ver": config.version,
-                    "new_ver": config.version,
-                    }
-    else:
-        git_update = {
-                    "installed_ver": config.version,
-                    "new_ver": remote_version,
-                    }
-
-    return(json.dumps(git_update))
-
-
-def check_git_version(script_dir):
-    full_cmd = "/usr/bin/git -C {} describe --tags `/usr/bin/git -C {} rev-list --tags --max-count=1`".format(script_dir, script_dir)
-    git_version = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8").replace('\n', '')
-
-    return(git_version)
+        return "unknown"
 
 
 def get_network_ip():
@@ -289,10 +316,10 @@ def get_mac_address():
     return mac
 
 
-def print_measured_values(cpu_load=0, cpu_temp=0, used_space=0, voltage=0, sys_clock_speed=0, swap=0, memory=0,
-                          uptime_days=0, uptime_seconds=0, wifi_signal=0, wifi_signal_dbm=0, rpi5_fan_speed=0,
-                          os_version=0, manufacturer=0, model_name=0, kernel_version=0, system_arch=0):
-    remote_version = update.check_git_version_remote(script_dir)
+def print_measured_values(used_space=0, sys_clock_speed=0, swap=0, memory=0,
+                          uptime=0, uptime_seconds=0, wifi_signal=0, wifi_signal_dbm=0, rpi5_fan_speed=0,
+                          os_version=0, manufacturer=0, model_name=0, kernel_version=0, system_updates=0, system_arch=0, upgradable_packages=0):
+    get_system_updates()
     output = """
 :: rpi-mqtt-monitor
    Version: {}
@@ -308,18 +335,14 @@ def print_measured_values(cpu_load=0, cpu_temp=0, used_space=0, voltage=0, sys_c
 
     if args.service:
         output += "   Service Sleep Time: {} seconds\n".format(config.service_sleep_time)
-    if config.update:
-        output += "   Update Check Interval: {} seconds\n".format(config.update_check_interval)
     output += """
 :: Measured values
-   CPU Load: {} %
-   CPU Temp: {} °C
-   Used Space: {} %
-   Voltage: {} V
+   Disk Usage: {} %
    CPU Clock Speed: {} MHz
    Swap: {} %
    Memory: {} %
-   Uptime: {} days
+   Uptime: {}
+   Uptime (Seconds): {}
    Wifi Signal: {} %
    Wifi Signal dBm: {}
    RPI5 Fan Speed: {} RPM
@@ -327,14 +350,9 @@ def print_measured_values(cpu_load=0, cpu_temp=0, used_space=0, voltage=0, sys_c
    Kernel: {}
    Architecture: {}
    System updates: {}
-   Manufacturer: {}
-   Model: {}
-   Update: {}
-   """.format(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, os_version, kernel_version, system_arch, check_system_updates(), manufacturer, model_name, check_git_update(script_dir))
-    output += """Installation directory: {}
-
-:: Release notes {}: 
-{}""".format(script_dir, remote_version, get_release_notes(remote_version).strip())
+   Upgradable packages: {}
+""".format(used_space, sys_clock_speed, swap, memory, uptime, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, os_version, kernel_version, system_arch, check_system_updates(), upgradable_packages)
+    output += "\r\nInstallation directory: {}\n".format(script_dir)
     print(output)
 
 
@@ -343,31 +361,6 @@ def extract_text(html_string):
     text = re.sub('<[^<]+?>', '', html_string)
 
     return text
-
-
-def get_release_notes(version):
-    url = "https://github.com/hjelev/rpi-mqtt-monitor/releases/tag/" + version
-
-    try:
-        response = subprocess.run(['curl', '-s', url], capture_output=True)
-        release_notes = response.stdout.decode('utf-8').split("What's Changed")[1].split("</div>")[0].replace("</h2>","").split("<p>")[0]
-    except Exception:
-        release_notes = "No release notes available"
-
-    lines = extract_text(release_notes).split('\n')
-
-    for i in range(len(lines)):
-        if lines[i].strip() != "":
-            lines[i] = "* " + lines[i]
-
-    release_notes = '\n'.join(lines)
-
-    if len(release_notes) > 255:
-        release_notes = release_notes[:250] + " ..."
-
-    release_notes = "### What's Changed" + release_notes
-
-    return release_notes
 
 
 def config_json(what_config):
@@ -414,6 +407,9 @@ def config_json(what_config):
     elif what_config == "system_arch":
         data["icon"] = "mdi:linux"
         data["name"] = "Architecture"
+    elif what_config == "upgradable_packages":
+        data["icon"] = "mdi:package-variant"
+        data["name"] = "Upgradable packages"
     elif what_config == "cputemp":
         data["icon"] = "hass:thermometer"
         data["name"] = "CPU Temperature"
@@ -423,11 +419,6 @@ def config_json(what_config):
         data["icon"] = "mdi:harddisk"
         data["name"] = "Disk Usage"
         data["unit_of_measurement"] = "%"
-        data["state_class"] = "measurement"
-    elif what_config == "voltage":
-        data["icon"] = "mdi:flash"
-        data["name"] = "CPU Voltage"
-        data["unit_of_measurement"] = "V"
         data["state_class"] = "measurement"
     elif what_config == "swap":
         data["icon"] = "mdi:harddisk"
@@ -444,14 +435,14 @@ def config_json(what_config):
         data["name"] = "CPU Clock Speed"
         data["unit_of_measurement"] = "MHz"
         data["state_class"] = "measurement"
-    elif what_config == "uptime_days":
+    elif what_config == "uptime":
         data["icon"] = "mdi:calendar"
         data["name"] = "Uptime"
-        data["unit_of_measurement"] = "days"
-        data["state_class"] = "total_increasing"
+#        data["unit_of_measurement"] = ""
+#        data["state_class"] = "total_increasing"
     elif what_config == "uptime_seconds":
         data["icon"] = "mdi:timer-outline"
-        data["name"] = "Uptime"
+        data["name"] = "Uptime seconds"
         data["unit_of_measurement"] = "s"
         data["device_class"] = "duration"
         data["state_class"] = "total_increasing"
@@ -474,26 +465,6 @@ def config_json(what_config):
         data["icon"] = "mdi:lan-connect"
         data["name"] = "Status"
         data["value_template"] = "{{ 'online' if value == '1' else 'offline' }}"
-    elif what_config == "git_update":
-        data["icon"] = "mdi:git"
-        data["name"] = "RPi MQTT Monitor"
-        data["title"] = "Device Update"
-        data["device_class"] = "update"
-        data["state_class"] = "measurement"
-        data["value_template"] = "{{ 'ON' if value_json.installed_ver != value_json.new_ver else 'OFF' }}"
-    elif what_config == "update":
-        version = update.check_git_version_remote(script_dir)
-        data["icon"] = "mdi:update"
-        data["name"] = "RPi MQTT Monitor"
-        data["title"] = "New Version"
-        data["state_topic"] = config.mqtt_topic_prefix + "/" + hostname + "/" + "git_update"
-        data["value_template"] = "{{ {'installed_version': value_json.installed_ver, 'latest_version': value_json.new_ver } | to_json }}"
-        data["device_class"] = "firmware"
-        data["command_topic"] = "homeassistant/update/" + hostname + "/command"
-        data["payload_install"] = "install"
-        data['release_url'] = "https://github.com/hjelev/rpi-mqtt-monitor/releases/tag/" + version
-        data['entity_picture'] = "https://masoko.net/rpi-mqtt-monitor.png"
-        data['release_summary'] = get_release_notes(version)
     elif what_config == "restart_button":
         data["icon"] = "mdi:restart"
         data["name"] = "System Restart"
@@ -506,18 +477,22 @@ def config_json(what_config):
         data["command_topic"] = "homeassistant/update/" + hostname + "/command"
         data["payload_press"] = "shutdown"
         data["device_class"] = "restart"
-    elif what_config == "display_on":
-        data["icon"] = "mdi:monitor"
-        data["name"] = "Monitor ON"
+    elif what_config == "install_system_updates":
+        data["icon"] = "mdi:update"
+        data["name"] = "Install system updates"
         data["command_topic"] = "homeassistant/update/" + hostname + "/command"
-        data["payload_press"] = "display_on"
-        data["device_class"] = "restart"
-    elif what_config == "display_off":
-        data["icon"] = "mdi:monitor"
-        data["name"] = "Monitor OFF"
+        data["payload_press"] = "install_system_updates"
+        data["device_class"] = "update"
+    elif what_config == "check_system_updates_button":
+        data["icon"] = "mdi:update"
+        data["name"] = "Check System Updates"
         data["command_topic"] = "homeassistant/update/" + hostname + "/command"
-        data["payload_press"] = "display_off"
-        data["device_class"] = "restart"
+        data["payload_press"] = "check_system_updates"
+        data["device_class"] = "update"
+    elif what_config == "system_update_progress":
+        data["icon"] = "mdi:progress-alert"
+        data["name"] = "System Update Progress"
+
     else:
         return ""
     # Return our built discovery config
@@ -548,33 +523,6 @@ def create_mqtt_client():
     return client
 
 
-def publish_update_status_to_mqtt(git_update):
-
-    client = create_mqtt_client()
-    if client is None:
-        print("Error: Unable to connect to MQTT broker")
-        return
-
-    client.loop_start()
-    if config.git_update:
-        if config.discovery_messages:
-            client.publish("homeassistant/binary_sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_git_update/config",
-                           config_json('git_update'), qos=config.qos)
-        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/git_update", git_update, qos=1, retain=config.retain)
-
-    if config.update:
-        if config.discovery_messages:
-            client.publish("homeassistant/update/" + hostname + "/config",
-                           config_json('update'), qos=1)
-
-    # Wait for all messages to be delivered
-    while len(client._out_messages) > 0:
-        time.sleep(0.1)
-        client.loop()
-
-    client.loop_stop()
-    client.disconnect()
-
 def publish_system_update_status_to_mqtt(system_updates_info):
 
     client = create_mqtt_client()
@@ -584,11 +532,12 @@ def publish_system_update_status_to_mqtt(system_updates_info):
 
     client.loop_start()
     
-    if True :
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_system_updates/config",
-                           config_json('system_updates'), qos=config.qos)
-        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/system_updates", system_updates_info, qos=config.qos, retain=config.retain)
+    client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_system_updates/config", config_json('system_updates'), qos=config.qos)
+    client.publish(config.mqtt_topic_prefix + "/" + hostname + "/system_updates", system_updates_info, qos=config.qos, retain=config.retain)
+
+    upgradable_packages = get_upgradable_packages()
+    client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_upgradable_packages/config", config_json('upgradable_packages'), qos=config.qos)
+    client.publish(config.mqtt_topic_prefix + "/" + hostname + "/upgradable_packages", upgradable_packages, qos=config.qos, retain=config.retain)
 
     while len(client._out_messages) > 0:
         time.sleep(0.1)
@@ -598,115 +547,95 @@ def publish_system_update_status_to_mqtt(system_updates_info):
     client.disconnect()
 
 
-def publish_to_mqtt(cpu_load=0, cpu_temp=0, used_space=0, voltage=0, sys_clock_speed=0, swap=0, memory=0,
-                    uptime_days=0, uptime_seconds=0, wifi_signal=0, wifi_signal_dbm=0, rpi5_fan_speed=0,
-                    os_version=0, manufacturer=0, model_name=0, kernel_version=0, system_arch=0):
+def publish_system_update_progress(message):
+    client = create_mqtt_client()
+    if client is None:
+        print("Error: Unable to connect to MQTT broker")
+        return
+
+    client.loop_start()
+
+    # Pubblica il messaggio sul topic specifico
+    client.publish(config.mqtt_topic_prefix + "/" + hostname + "/system_update_progress", message, qos=config.qos, retain=config.retain)
+
+    while len(client._out_messages) > 0:
+        time.sleep(0.1)
+        client.loop()
+
+    client.loop_stop()
+    client.disconnect()
+
+
+def publish_to_mqtt(used_space=0, sys_clock_speed=0, swap=0, memory=0,
+                    uptime=0, uptime_seconds=0, wifi_signal=0, wifi_signal_dbm=0, rpi5_fan_speed=0,
+                    os_version=0, manufacturer=0, model_name=0, kernel_version=0, system_updates=0, system_arch=0, upgradable_packages=0):
+
     client = create_mqtt_client()
     if client is None:
         return
 
     client.loop_start()
 
+
+    if config.system_updates:
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_system_updates/config", config_json('system_updates'), qos=config.qos)
+        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/system_updates", system_updates, qos=config.qos, retain=config.retain)
+    if config.system_updates:
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_upgradable_packages/config", config_json('upgradable_packages'), qos=config.qos)
+        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/upgradable_packages", upgradable_packages, qos=config.qos, retain=config.retain)
     if config.os_version:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_os_version/config",
-                           config_json('os_version'), qos=config.qos)
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_os_version/config", config_json('os_version'), qos=config.qos)
         client.publish(config.mqtt_topic_prefix + "/" + hostname + "/os_version", os_version, qos=config.qos, retain=config.retain)
-    if config.manufacturer:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_manufacturer/config",
-                           config_json('manufacturer'), qos=config.qos)
+    if config.manufacturer_info:
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_manufacturer/config", config_json('manufacturer'), qos=config.qos)
         client.publish(config.mqtt_topic_prefix + "/" + hostname + "/manufacturer", manufacturer, qos=config.qos, retain=config.retain)
     if config.model_name:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_model_name/config",
-                           config_json('model_name'), qos=config.qos)
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_model_name/config", config_json('model_name'), qos=config.qos)
         client.publish(config.mqtt_topic_prefix + "/" + hostname + "/model_name", model_name, qos=config.qos, retain=config.retain)
     if config.kernel_version:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_kernel_version/config",
-                           config_json('kernel_version'), qos=config.qos)
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_kernel_version/config", config_json('kernel_version'), qos=config.qos)
         client.publish(config.mqtt_topic_prefix + "/" + hostname + "/kernel_version", kernel_version, qos=config.qos, retain=config.retain)
-    if config.system_arch:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_system_arch/config",
-                           config_json('system_arch'), qos=config.qos)
+    if config.system_architecture:
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_system_arch/config", config_json('system_arch'), qos=config.qos)
         client.publish(config.mqtt_topic_prefix + "/" + hostname + "/system_arch", system_arch, qos=config.qos, retain=config.retain)
-    if config.cpu_load:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_cpuload/config",
-                           config_json('cpuload'), qos=config.qos)
-        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/cpuload", cpu_load, qos=config.qos, retain=config.retain)
-    if config.cpu_temp:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_cputemp/config",
-                           config_json('cputemp'), qos=config.qos)
-        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/cputemp", cpu_temp, qos=config.qos, retain=config.retain)
-    if config.used_space:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_diskusage/config",
-                           config_json('diskusage'), qos=config.qos)
+    if config.disk_usage:
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_diskusage/config", config_json('diskusage'), qos=config.qos)
         client.publish(config.mqtt_topic_prefix + "/" + hostname + "/diskusage", used_space, qos=config.qos, retain=config.retain)
-    if config.voltage:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_voltage/config",
-                           config_json('voltage'), qos=config.qos)
-        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/voltage", voltage, qos=config.qos, retain=config.retain)
-    if config.swap:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_swap/config",
-                           config_json('swap'), qos=config.qos)
+    if config.swap_usage:
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_swap/config", config_json('swap'), qos=config.qos)
         client.publish(config.mqtt_topic_prefix + "/" + hostname + "/swap", swap, qos=config.qos, retain=config.retain)
-    if config.memory:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_memory/config",
-                           config_json('memory'), qos=config.qos)
+    if config.memory_usage:
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_memory/config", config_json('memory'), qos=config.qos)
         client.publish(config.mqtt_topic_prefix + "/" + hostname + "/memory", memory, qos=config.qos, retain=config.retain)
-    if config.sys_clock_speed:
-        if config.discovery_messages:
-            client.publish(
-                "homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_sys_clock_speed/config",
-                config_json('sys_clock_speed'), qos=config.qos)
+    if config.cpu_clock_speed:
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_sys_clock_speed/config", config_json('sys_clock_speed'), qos=config.qos)
         client.publish(config.mqtt_topic_prefix + "/" + hostname + "/sys_clock_speed", sys_clock_speed, qos=config.qos, retain=config.retain)
     if config.uptime:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_uptime_days/config",
-                           config_json('uptime_days'), qos=config.qos)
-        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/uptime_days", uptime_days, qos=config.qos, retain=config.retain)
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_uptime/config", config_json('uptime'), qos=config.qos)
+        client.publish(config.mqtt_topic_prefix + "/" + hostname + "/uptime", uptime, qos=config.qos, retain=config.retain)
     if config.uptime_seconds:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_uptime_seconds/config",
-                           config_json('uptime_seconds'), qos=config.qos)
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_uptime_seconds/config", config_json('uptime_seconds'), qos=config.qos)
         client.publish(config.mqtt_topic_prefix + "/" + hostname + "/uptime_seconds", uptime_seconds, qos=config.qos, retain=config.retain)
     if config.wifi_signal:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_wifi_signal/config",
-                           config_json('wifi_signal'), qos=config.qos)
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_wifi_signal/config", config_json('wifi_signal'), qos=config.qos)
         client.publish(config.mqtt_topic_prefix + "/" + hostname + "/wifi_signal", wifi_signal, qos=config.qos, retain=config.retain)
     if config.wifi_signal_dbm:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_wifi_signal_dbm/config",
-                           config_json('wifi_signal_dbm'), qos=config.qos)
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_wifi_signal_dbm/config", config_json('wifi_signal_dbm'), qos=config.qos)
         client.publish(config.mqtt_topic_prefix + "/" + hostname + "/wifi_signal_dbm", wifi_signal_dbm, qos=config.qos, retain=config.retain)
     if config.rpi5_fan_speed:
-        if config.discovery_messages:
-            client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_rpi5_fan_speed/config",
-                           config_json('rpi5_fan_speed'), qos=config.qos)
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_rpi5_fan_speed/config", config_json('rpi5_fan_speed'), qos=config.qos)
         client.publish(config.mqtt_topic_prefix + "/" + hostname + "/rpi5_fan_speed", rpi5_fan_speed, qos=config.qos, retain=config.retain)
     if config.restart_button:
-        if config.discovery_messages:
-            client.publish("homeassistant/button/" + config.mqtt_topic_prefix + "/" + hostname + "_restart/config",
-                           config_json('restart_button'), qos=config.qos)
+        client.publish("homeassistant/button/" + config.mqtt_topic_prefix + "/" + hostname + "_restart/config", config_json('restart_button'), qos=config.qos)
     if config.shutdown_button:
-        if config.discovery_messages:
-            client.publish("homeassistant/button/" + config.mqtt_topic_prefix + "/" + hostname + "_shutdown/config",
-                           config_json('shutdown_button'), qos=config.qos)
-    if config.display_control:
-        if config.discovery_messages:
-            client.publish("homeassistant/button/" + config.mqtt_topic_prefix + "/" + hostname + "_display_on/config",
-                           config_json('display_on'), qos=config.qos)
-            client.publish("homeassistant/button/" + config.mqtt_topic_prefix + "/" + hostname + "_display_off/config",
-                           config_json('display_off'), qos=config.qos)
+        client.publish("homeassistant/button/" + config.mqtt_topic_prefix + "/" + hostname + "_shutdown/config", config_json('shutdown_button'), qos=config.qos)
+    if config.check_updates_button:
+        client.publish("homeassistant/button/" + config.mqtt_topic_prefix + "/" + hostname + "_check_system_updates/config", config_json('check_system_updates_button'), qos=config.qos )
+    if config.install_updates_button:
+        client.publish("homeassistant/button/" + config.mqtt_topic_prefix + "/" + hostname + "_install_system_updates/config", config_json('install_system_updates'), qos=config.qos)
+    if config.system_update_progress:
+        client.publish("homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_system_update_progress/config", config_json('system_update_progress'), qos=config.qos)
+
 
     status_sensor_topic = "homeassistant/sensor/" + config.mqtt_topic_prefix + "/" + hostname + "_status/config"
     client.publish(status_sensor_topic, config_json('status'), qos=config.qos)
@@ -719,77 +648,35 @@ def publish_to_mqtt(cpu_load=0, cpu_temp=0, used_space=0, voltage=0, sys_clock_s
     client.loop_stop()
     client.disconnect()
 
+
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--display', '-d', action='store_true', help='display values on screen', default=False)
-    parser.add_argument('--service', '-s', action='store_true', help='run script as a service, sleep interval is configurable in config.py', default=False)
-    parser.add_argument('--version', '-v', action='store_true', help='display installed version and exit', default=False)
-    parser.add_argument('--update',  '-u', action='store_true', help='update script and config then exit', default=False)
-    parser.add_argument('--hass',    '-H', action='store_true', help='display Home assistant wake on lan configuration', default=False)
+    parser.add_argument('-d', '--display', action='store_true', help='display values on screen', default=False)
+    parser.add_argument('-s', '--service', action='store_true', help='run script as a service, sleep interval is configurable in config.py', default=False)
+    parser.add_argument('-v', '--version', action='store_true', help='display installed version and exit', default=False)
     args = parser.parse_args()
-
-    if args.update:
-        version = update.check_git_version_remote(script_dir).strip()
-        git_update = check_git_update(script_dir)
-
-        if git_update == 'on':
-            git_update = True
-        else:
-            git_update = False
-
-        update.do_update(script_dir, version, git_update)
-
-        exit()
 
     if args.version:
         installed_version = config.version
-        latest_version = update.check_git_version_remote(script_dir).strip()
         print("Installed version: " + installed_version)
-        print("Latest version: " + latest_version)
-        if installed_version != latest_version:
-            print("Update available")
-        else:
-            print("No update available")
-        exit()
-
-    if args.hass:
-        hass_config = """Add this to your Home Assistant switches.yaml file: 
-
-  - platform: wake_on_lan
-    mac: "{}"
-    host: "{}"
-    name: "{}-switch"
-    turn_off:
-      service: mqtt.publish
-      data:
-        topic: "homeassistant/update/{}/command"
-        payload: "shutdown"
-    """.format(get_mac_address(), get_network_ip(), hostname, hostname )
-        print(hass_config)
         exit()
 
     return args
 
 
 def collect_monitored_values():
-    cpu_load = cpu_temp = used_space = voltage = sys_clock_speed = swap = memory = uptime_seconds = uptime_days = wifi_signal = wifi_signal_dbm = rpi5_fan_speed = os_version = manufacturer = model_name = kernel_version = system_updates = system_arch = False
+    used_space = sys_clock_speed = swap = memory = uptime_seconds = uptime = wifi_signal = wifi_signal_dbm = rpi5_fan_speed = os_version = manufacturer = model_name = kernel_version = system_updates = system_arch = upgradable_packages = False
 
-    if config.cpu_load:
-        cpu_load = check_cpu_load()
-    if config.cpu_temp:
-        cpu_temp = check_cpu_temp()
-    if config.used_space:
-        used_space = check_used_space(config.used_space_path)
-    if config.voltage:
-        voltage = check_voltage()
-    if config.sys_clock_speed:
+    if config.disk_usage:
+        used_space = check_used_space(config.disk_usage_path)
+    if config.cpu_clock_speed:
         sys_clock_speed = check_sys_clock_speed()
-    if config.swap:
+    if config.swap_usage:
         swap = check_swap()
-    if config.memory:
+    if config.memory_usage :
         memory = check_memory()
     if config.uptime:
-        uptime_days = check_uptime('/3600/24')
+        uptime = check_uptime_str()
     if config.uptime_seconds:
         uptime_seconds = check_uptime('')
     if config.wifi_signal:
@@ -800,7 +687,7 @@ def collect_monitored_values():
         rpi5_fan_speed = check_rpi5_fan_speed()
     if config.os_version:
         os_version = get_os()
-    if config.manufacturer:
+    if config.manufacturer_info:
         manufacturer = get_manufacturer()
     if config.model_name:
         model_name = check_model_name()
@@ -808,23 +695,24 @@ def collect_monitored_values():
         kernel_version = get_kernel_version()
     if config.system_updates:
         system_updates = check_system_updates()
-    if config.system_arch:
+        upgradable_packages = get_upgradable_packages()
+    if config.system_architecture:
         system_arch = get_system_architecture()
 
-    return cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, os_version, manufacturer, model_name, kernel_version, system_arch
+    return used_space, sys_clock_speed, swap, memory, uptime, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, os_version, manufacturer, model_name, kernel_version, system_updates, system_arch, upgradable_packages
 
 
 def gather_and_send_info():
     while not stop_event.is_set():
-        cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, os_version, manufacturer, model_name, kernel_version, system_arch = collect_monitored_values()
+        used_space, sys_clock_speed, swap, memory, uptime, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, os_version, manufacturer, model_name, kernel_version, system_updates, system_arch, upgradable_packages = collect_monitored_values()
 
         if hasattr(config, 'random_delay'):
             time.sleep(config.random_delay)
 
         if args.display:
-            print_measured_values(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, os_version, manufacturer, model_name, kernel_version, system_arch)
+            print_measured_values(used_space, sys_clock_speed, swap, memory, uptime, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, os_version, manufacturer, model_name, kernel_version, system_updates, system_arch, upgradable_packages)
 
-        publish_to_mqtt(cpu_load, cpu_temp, used_space, voltage, sys_clock_speed, swap, memory, uptime_days, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, os_version, manufacturer, model_name, kernel_version, system_arch)
+        publish_to_mqtt(used_space, sys_clock_speed, swap, memory, uptime, uptime_seconds, wifi_signal, wifi_signal_dbm, rpi5_fan_speed, os_version, manufacturer, model_name, kernel_version, system_updates, system_arch, upgradable_packages)
 
         if not args.service:
             break
@@ -835,54 +723,36 @@ def gather_and_send_info():
             time.sleep(1)
 
 
-def update_status():
-    while not stop_event.is_set():
-        git_update = check_git_update(script_dir)
-        publish_update_status_to_mqtt(git_update)
-        stop_event.wait(config.update_check_interval)
-        if stop_event.is_set():
-            break
-
 def system_update_status():
     while not stop_event.is_set():
+        get_system_updates()
         system_update_info = check_system_updates()
         publish_system_update_status_to_mqtt(system_update_info)
-        stop_event.wait(config.update_check_interval)
+        stop_event.wait(config.updates_check_interval)
         if stop_event.is_set():
             break
 
 def on_message(client, userdata, msg):
-    global exit_flag, thread1, thread2
+    global exit_flag, thread1, thread3
     print("Received message: ", msg.payload.decode())
-    if msg.payload.decode() == "install":
-        def update_and_exit():
-            version = update.check_git_version_remote(script_dir).strip()
-            update.do_update(script_dir, version, git_update=True, config_update=True)
-            print("Update completed. Stopping MQTT client loop...")
-            client.loop_stop()  # Stop the MQTT client loop
-            print("Setting exit flag...")
-            exit_flag = True
-            stop_event.set()  # Signal the threads to stop
-            if thread1 is not None:
-                thread1.join()  # Wait for thread1 to finish
-            if thread2 is not None:
-                thread2.join()  # Wait for thread2 to finish
-            os._exit(0)  # Exit the script immediately
-
-        update_thread = threading.Thread(target=update_and_exit)
-        update_thread.start()
-    elif msg.payload.decode() == "restart":
+    if msg.payload.decode() == "restart":
         print("Restarting the system...")
         os.system("sudo reboot")
     elif msg.payload.decode() == "shutdown":
         print("Shutting down the system...")
         os.system("sudo shutdown now")
-    elif msg.payload.decode() == "display_off":
-        print("Turn off display")
-        os.system('su -l {} -c "xset -display :0 dpms force off"'.format(config.os_user))
-    elif msg.payload.decode() == "display_on":
-        print("Turn on display")
-        os.system('su -l {} -c "xset -display :0 dpms force on"'.format(config.os_user))
+    elif msg.payload.decode() == "install_system_updates":
+#        print("Avvio dell'installazione degli aggiornamenti...")
+#        publish_system_update_progress("Avvio dell'installazione degli aggiornamenti...")
+        install_system_updates()
+#        publish_system_update_progress("Aggiornamento completato.")
+#        print("Aggiornamento completato.")
+    elif msg.payload.decode() == "check_system_updates":
+        print("Checking for system updates...")
+        get_system_updates()
+        system_update_info = check_system_updates()
+        publish_system_update_status_to_mqtt(system_update_info)
+        print("System update status published.")
 
 exit_flag = False
 stop_event = threading.Event()
@@ -912,12 +782,7 @@ if __name__ == '__main__':
         thread1.daemon = True  # Set thread1 as a daemon thread
         thread1.start()
 
-        if config.update:
-            thread2 = threading.Thread(target=update_status)
-            thread2.daemon = True  # Set thread2 as a daemon thread
-            thread2.start()
-
-        if config.system_updates_check:
+        if config.system_updates:
             thread3 = threading.Thread(target=system_update_status)
             thread3.daemon = True  # Set thread3 as a daemon thread
             thread3.start()
