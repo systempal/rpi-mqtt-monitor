@@ -20,6 +20,10 @@ import re
 import html
 import uuid
 
+# Imposta le variabili d'ambiente per la lingua
+os.environ['LC_ALL'] = 'en_US.UTF-8'
+os.environ['LANG'] = 'en_US.UTF-8'
+
 
 def check_wifi_signal(format):
     try:
