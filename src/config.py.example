@@ -10,7 +10,6 @@ mqtt_password = "password"
 mqtt_port = "1883"
 mqtt_topic_prefix = "rpi-MQTT-monitor"
 
-
 #BUTTONS
 
 # Enable remote restart button in Home Assistant
@@ -25,11 +24,13 @@ check_updates_button = True
 # Enable remote 'install system updates' button in Home Assistant
 install_updates_button = True
 
+
+
 # Retain flag for published topics
 retain = True
 
 # QOS setting for published topics: 0,1,2 are acceptable values
-qos = 1
+qos = 0
 
 # Random delay in seconds before measuring the values
 # - this is used for de-synchronizing message if you run this script on many hosts.
@@ -42,6 +43,7 @@ service_sleep_time = 120
 # This is the time in seconds between system update checks
 updates_check_interval = 3600
 
+system_update_progress = True
 
 disk_usage = True
 disk_usage_path = '/'
