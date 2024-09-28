@@ -249,7 +249,7 @@ def install_system_updates():
     return result
 
 def get_upgradable_packages():
-    full_cmd = "sudo apt list --upgradable 2>/dev/null | grep 'upgradable' | awk -F/ '{print $1}'"
+    full_cmd = "apt list --upgradable 2>/dev/null | grep 'upgradable' | awk -F/ '{print $1}'"
     try:
         # Esegui il comando e cattura l'output
         packages = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8").strip()
