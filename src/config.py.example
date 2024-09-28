@@ -4,11 +4,12 @@ from random import randrange
 version = '0.1'
 
 # MQTT server configuration
-mqtt_host = ""
-mqtt_user = ""
-mqtt_password = ""
+mqtt_host = "ip address or host"
+mqtt_user = "username"
+mqtt_password = "password"
 mqtt_port = "1883"
 mqtt_topic_prefix = "rpi-MQTT-monitor"
+
 
 #BUTTONS
 
@@ -23,8 +24,6 @@ check_updates_button = True
 
 # Enable remote 'install system updates' button in Home Assistant
 install_updates_button = True
-
-
 
 # Retain flag for published topics
 retain = True

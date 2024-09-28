@@ -88,9 +88,6 @@ update_config(){
     esac
   fi
 
-  user=$(whoami)
-  sed -i "s/os_user_to_be_replaced/${user}/" src/config.py
-
   print_green "+ Copy config.py.example to config.py"
   cp src/config.py.example src/config.py
   printm "MQTT settings"
