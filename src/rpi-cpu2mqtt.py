@@ -249,7 +249,7 @@ def install_system_updates():
     return result
 
 def get_upgradable_packages():
-    full_cmd = "LC_ALL=C apt list --upgradable 2>/dev/null | grep 'upgradable' | awk -F/ '{print $1}'"
+    full_cmd = "apt list --upgradable 2>/dev/null | grep 'upgradable' | awk -F/ '{print $1}'"
     try:
         # Esegui il comando e cattura l'output
         packages = subprocess.Popen(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()[0].decode("utf-8").strip()
@@ -414,6 +414,7 @@ def config_json(what_config):
     elif what_config == "upgradable_packages":
         data["icon"] = "mdi:package-variant"
         data["name"] = "Upgradable packages"
+        data["value_template"] = "{{ ', '.join(value.split(',')[:15]) + ', ...' }}"
     elif what_config == "cputemp":
         data["icon"] = "hass:thermometer"
         data["name"] = "CPU Temperature"
