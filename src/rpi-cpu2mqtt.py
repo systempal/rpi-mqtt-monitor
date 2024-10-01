@@ -414,7 +414,7 @@ def config_json(what_config):
     elif what_config == "upgradable_packages":
         data["icon"] = "mdi:package-variant"
         data["name"] = "Upgradable packages"
-        data["value_template"] = "{{ ', '.join(value.split(',')[:15]) + ', ...' }}"
+        data["value_template"] = "{{ ', '.join(value.split(',')[:10]) }}"
     elif what_config == "cputemp":
         data["icon"] = "hass:thermometer"
         data["name"] = "CPU Temperature"
